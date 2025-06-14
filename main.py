@@ -19,11 +19,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 config=configparser.ConfigParser()
 config.read('config.properties')
 
-#Structured output parser
-
-
-
-
 #below will be used to 
 class Information(BaseModel):
     topic:str=Field(...,description='Unique topic from document')
@@ -124,18 +119,35 @@ def generate_get_basic_info(query,llm,file,ocr_method,session_id,prompt1,output_
     
     #chunking_text
     text_splitter = RecursiveCharacterTextSplitter(
-    # Set a really small chunk size, just to show.
     chunk_size=2000, #2000 chars per chunk
-    chunk_overlap=400,  #Number of characters that should overlap between consecutive chunks. Prevents context loss.
+    chunk_overlap=400,  
     length_function=len,
     is_separator_regex=False)
     
     texts = text_splitter.create_documents(all_text_content)
-    prompt2=f"\nThe Context text:{texts}"
-    #then encode our chunks -tiktoken
-    #will do structred
-    #final funcion def Generate_INFO which will generate response by calling llm
-    #in the end it will return response
+    prompt2=f"""You are a highly capable AI assistant.
+Below is the **extracted context** from a document (could be a PDF, DOCX, etc.). Your job is to analyze this text and use it to respond to user queries with factual, structured, and insightful responses.
+Extracted Document Content:
+{texts}
+Your task is to:
+1. **Carefully read and understand** the content provided above.
+2. Use this context to generate accurate answers to any user query.
+3. If a user provides a query, find **relevant parts of the text** that directly or indirectly relate to it.
+4. If the query is not mentioned, look for **conceptually related** content and explain your reasoning.
+5. If the query has **no relevance** to the content, say so clearly but still summarize the document helpfully.
+"""f"""
+You are a highly capable AI assistant.
+Below is the **extracted context** from a document (could be a PDF, DOCX, etc.). Your job is to analyze this text and use it to respond to user queries with factual, structured, and insightful responses.
+Extracted Document Content:
+{texts}
+Your task is to:
+1. **Carefully read and understand** the content provided above.
+2. Use this context to generate accurate answers to any user query.
+3. If a user provides a query, find **relevant parts of the text** that directly or indirectly relate to it.
+4. If the query is not mentioned, look for **conceptually related** content and explain your reasoning.
+5. If the query has **no relevance** to the content, say so clearly but still summarize the document helpfully.
+"""
+   
     prompt=prompt1+prompt2
     llm=llm.with_structured_output(Information)
     output=llm.invoke(prompt)
