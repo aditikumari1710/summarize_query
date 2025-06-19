@@ -19,6 +19,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 config=configparser.ConfigParser()
 config.read('config.properties')
 
+#Structured output parser
+
+
+
+
 #below will be used to 
 class Information(BaseModel):
     topic:str=Field(...,description='Unique topic from document')
@@ -68,21 +73,25 @@ async def get_basic_info (
     
     
     if query:
-        prompt = f"""You are a smart AI assistant. A user is specifically looking for information about **'{query}'** in the content extracted from the uploaded document.\n\n"
-        
-        "Your task is to generate a structured JSON response containing the following keys:\n"
-        "- `topic`: The main subject of the document, focusing on the query.\n"
-        "- `short_description`: A brief explanation addressing the query if relevant.\n"
-        "- `long_description`: A detailed answer or exposition centered on the query, using all available context from the document.\n"
-        "- `overview`: A high-level summary of the document's overall content, highlighting parts that relate to the query.HEre add almost all the content possible\n"
-        "- `metadata`: Any relevant details such as author, document title, creation date, section name, etc.\n\n"
+        prompt = f"""
+You are a smart AI assistant. A user is specifically looking for information about **'{query}'** in the content extracted from the uploaded document.
 
-        "-Focus **primarily** on the content that is most relevant to the query.\n"
-        "- If the query is explicitly mentioned, extract detailed and relevant information.\n"
-        "- If the query is **not directly mentioned** but **contextually related**, infer intelligently and clearly note this.\n"
-        "- If the query is **not relevant at all** to the document's content, then politely indicate that in the output, and provide a general summary instead.\n\n"
+Your task is to generate a structured JSON response containing the following keys:
+- `topic`: The main subject of the document, focusing on the query.
+- `short_description`: A brief explanation addressing the query if relevant.
+- `long_description`: A detailed answer or exposition centered on the query, using all available context from the document.
+- `overview`: A high-level summary of the document's overall content, highlighting parts that relate to the query. Include as much content as possible.
+- `metadata`: Any relevant details such as author, document title, creation date, section name, etc.
 
-        "Make sure the output is factual, concise, and captures the essence of the query within the document context."""
+Guidelines:
+- Focus **primarily** on the content that is most relevant to the query.
+- If the query is explicitly mentioned, extract detailed and relevant information.
+- If the query is **not directly mentioned** but **contextually related**, infer intelligently and clearly note this.
+- If the query is **not relevant at all**, politely indicate that and provide a general summary instead.
+
+Ensure the output is factual, concise, and captures the essence of the query within the document context.
+"""
+
          
     else:
        prompt = f"""You are a smart AI assistant. Generate structured JSON output with the following keys:"
@@ -119,14 +128,17 @@ def generate_get_basic_info(query,llm,file,ocr_method,session_id,prompt1,output_
     
     #chunking_text
     text_splitter = RecursiveCharacterTextSplitter(
+    # Set a really small chunk size, just to show.
     chunk_size=2000, #2000 chars per chunk
-    chunk_overlap=400,  
+    chunk_overlap=400,  #Number of characters that should overlap between consecutive chunks. Prevents context loss.
     length_function=len,
     is_separator_regex=False)
     
-    texts = text_splitter.create_documents(all_text_content)
-    prompt2=f"""You are a highly capable AI assistant.
-Below is the **extracted context** from a document (could be a PDF, DOCX, etc.). Your job is to analyze this text and use it to respond to user queries with factual, structured, and insightful responses.
+    print(len(all_text_content))
+    texts=all_text_content
+    prompt2=f"""s
+Address the user query or context extracted, like you are knowledgable AI Assistant
+Below is the **extracted context** from a document . Your job is to analyze this text and use it to respond to user queries with factual, structured, and insightful responses.
 Extracted Document Content:
 {texts}
 Your task is to:
@@ -135,19 +147,13 @@ Your task is to:
 3. If a user provides a query, find **relevant parts of the text** that directly or indirectly relate to it.
 4. If the query is not mentioned, look for **conceptually related** content and explain your reasoning.
 5. If the query has **no relevance** to the content, say so clearly but still summarize the document helpfully.
-"""f"""
-You are a highly capable AI assistant.
-Below is the **extracted context** from a document (could be a PDF, DOCX, etc.). Your job is to analyze this text and use it to respond to user queries with factual, structured, and insightful responses.
-Extracted Document Content:
-{texts}
-Your task is to:
-1. **Carefully read and understand** the content provided above.
-2. Use this context to generate accurate answers to any user query.
-3. If a user provides a query, find **relevant parts of the text** that directly or indirectly relate to it.
-4. If the query is not mentioned, look for **conceptually related** content and explain your reasoning.
-5. If the query has **no relevance** to the content, say so clearly but still summarize the document helpfully.
+MANDATORY:IF any of the document is incomplete. You complete it with your own logic related to the topic provided by user or the overall Context.
+
 """
-   
+    #then encode our chunks -tiktoken
+    #will do structred
+    #final funcion def Generate_INFO which will generate response by calling llm
+    #in the end it will return response
     prompt=prompt1+prompt2
     llm=llm.with_structured_output(Information)
     output=llm.invoke(prompt)
