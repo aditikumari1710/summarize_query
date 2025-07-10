@@ -16,6 +16,8 @@ from langchain_core.messages import SystemMessage,HumanMessage
 from DataPreprocessing.data_convert import document_to_text
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+
 config=configparser.ConfigParser()
 config.read('config.properties')
 
@@ -73,15 +75,19 @@ async def get_basic_info (
     
     
     if query:
-        prompt = f"""
-You are a smart AI assistant. A user is specifically looking for information about **'{query}'** in the content extracted from the uploaded document.
+        #SystemMessagePrompt
+        prompt+= f"""
+You are a smart AI assistant. A user is specifically looking for information about the query:**'{query}'** in the content extracted from the uploaded document.
 
-Your task is to generate a structured JSON response containing the following keys:
-- `topic`: The main subject of the document, focusing on the query.
-- `short_description`: A brief explanation addressing the query if relevant.
-- `long_description`: A detailed answer or exposition centered on the query, using all available context from the document.
-- `overview`: A high-level summary of the document's overall content, highlighting parts that relate to the query. Include as much content as possible.
-- `metadata`: Any relevant details such as author, document title, creation date, section name, etc.
+All keys (“topic”, “short_description”, “long_description”, “overview”, “metadata”) should directly address or derive from the user's query:
+- **topic**: Only mention the topic related to user query or its closely related concept.
+- **short_description**: A concise answer that matches the query precisely.
+- **long_description**: A detailed response *specifically* about the user's query.
+- **overview**: Summarize the document *only* as it relates to the query—not full coverage.
+- **metadata**: Include document metadata that is clearly relevant.
+
+If the query isn't found, say so and provide a brief relevant summary.
+Do *not* include unrelated content or wander off-topic
 
 Guidelines:
 - Focus **primarily** on the content that is most relevant to the query.
@@ -91,20 +97,24 @@ Guidelines:
 
 Ensure the output is factual, concise, and captures the essence of the query within the document context.
 """
-
+     #humanMessagePrompt
+     
          
     else:
-       prompt = f"""You are a smart AI assistant. Generate structured JSON output with the following keys:"
-                "topic, short_description, long_description, overview, and metadata. "
-                "Each key should be filled with relevant information extracted from the provided document."""
+       prompt = f"""Your task is to generate a structured JSON response containing the following keys:
+- `topic`: The main subject of the document, focusing on the query.
+- `short_description`: A brief explanation addressing the query if relevant.
+- `long_description`: A detailed answer or exposition centered on the query, using all available context from the document.
+- `overview`: A high-level summary of the document's overall content, highlighting parts that relate to the query. Include as much content as possible.
+- `metadata`: Any relevant details such as author, document title, creation date, section name, etc.."""
     
         
     
     model_name=config['Model']['model_name_gemini']
     llm=get_llm_model(model_name)
     
-    print(len(files))
-    print(f'query:{query}')
+    #print(len(files))
+    #print(f'query:{query}')
     get_results=await asyncio.gather(*[async_from_get_basic_info(query,llm,file,ocr_method,session_id,prompt,output_folder_path,cur_uploads_path) for file in files])
     return get_results
     
@@ -122,7 +132,7 @@ def generate_get_basic_info(query,llm,file,ocr_method,session_id,prompt1,output_
     """file_location = f'{cur_uploads_path}/{file.filename}'
     with open(file_location, "wb") as f:
         f.write( file.read())"""
-    print(f"uploaded_folder_path:{cur_uploads_path}")
+    #print(f"uploaded_folder_path:{cur_uploads_path}")
     all_text_content=document_to_text(file,ocr_method,session_id,output_folder_path,cur_uploads_path)
     
     
@@ -134,14 +144,14 @@ def generate_get_basic_info(query,llm,file,ocr_method,session_id,prompt1,output_
     length_function=len,
     is_separator_regex=False)
     
-    print(len(all_text_content))
+    #print(len(all_text_content))
     texts=all_text_content
-    prompt2=f"""s
-Address the user query or context extracted, like you are knowledgable AI Assistant
+    prompt2=f"""
+Address the user query or context extracted
 Below is the **extracted context** from a document . Your job is to analyze this text and use it to respond to user queries with factual, structured, and insightful responses.
 Extracted Document Content:
-{texts}
-Your task is to:
+{texts}"""
+    prompt1+="""Your task is to ,generate response like you are knowledgable AI Assistant
 1. **Carefully read and understand** the content provided above.
 2. Use this context to generate accurate answers to any user query.
 3. If a user provides a query, find **relevant parts of the text** that directly or indirectly relate to it.
@@ -154,10 +164,15 @@ MANDATORY:IF any of the document is incomplete. You complete it with your own lo
     #will do structred
     #final funcion def Generate_INFO which will generate response by calling llm
     #in the end it will return response
-    prompt=prompt1+prompt2
+    #prompt=prompt1+prompt2
+    prompt=[
+        SystemMessage(content=f"{prompt1}"),
+        HumanMessage(content=f"{prompt2}")
+    ]
+    print("prompt\n",prompt)
     llm=llm.with_structured_output(Information)
     output=llm.invoke(prompt)
-    #print(f'output:{output}')
+    print(f'\n\n######output:{output}')
     return output
     
     
